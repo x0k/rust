@@ -49,7 +49,7 @@ pub fn add_configuration(cfg: &mut Cfg, sess: &mut Session, codegen_backend: &dy
 }
 
 pub static STACK_SIZE: OnceLock<usize> = OnceLock::new();
-pub const DEFAULT_STACK_SIZE: usize = 8 * 1024 * 1024;
+pub const DEFAULT_STACK_SIZE: usize = 32 * 1024 * 1024;
 
 fn init_stack_size(early_dcx: &EarlyDiagCtxt) -> usize {
     // Obey the environment setting or default
@@ -82,7 +82,7 @@ fn init_stack_size(early_dcx: &EarlyDiagCtxt) -> usize {
 }
 
 fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
-    thread_stack_size: usize,
+    _thread_stack_size: usize,
     edition: Edition,
     sm_inputs: SourceMapInputs,
     f: F,
@@ -93,7 +93,7 @@ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
     // the parallel compiler, in particular to ensure there is no accidental
     // sharing of data between the main thread and the compilation thread
     // (which might cause problems for the parallel compiler).
-    let builder = thread::Builder::new().name("rustc".to_string()).stack_size(thread_stack_size);
+    /*let builder = thread::Builder::new().name("rustc".to_string()).stack_size(thread_stack_size);
 
     // We build the session globals and run `f` on the spawned thread, because
     // `SessionGlobals` does not impl `Send` in the non-parallel compiler.
@@ -101,11 +101,11 @@ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
         // `unwrap` is ok here because `spawn_scoped` only panics if the thread
         // name contains null bytes.
         let r = builder
-            .spawn_scoped(s, move || {
+            .spawn_scoped(s, move || {*/
                 rustc_span::create_session_globals_then(edition, Some(sm_inputs), || {
                     f(CurrentGcx::new())
                 })
-            })
+            /*})
             .unwrap()
             .join();
 
@@ -113,7 +113,7 @@ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
             Ok(v) => v,
             Err(e) => std::panic::resume_unwind(e),
         }
-    })
+    })*/
 }
 
 pub(crate) fn run_in_thread_pool_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
@@ -247,6 +247,8 @@ pub fn get_codegen_backend(
             }
             #[cfg(feature = "llvm")]
             "llvm" => rustc_codegen_llvm::LlvmCodegenBackend::new,
+            #[cfg(feature = "cranelift")]
+            "cranelift" => rustc_codegen_cranelift::__rustc_codegen_backend,
             backend_name => get_codegen_sysroot(early_dcx, sysroot, backend_name),
         }
     });
