@@ -58,32 +58,37 @@ pub(crate) fn run_in_thread_with_globals<F: FnOnce() -> R + Send, R: Send>(
     edition: Edition,
     f: F,
 ) -> R {
-    // The "thread pool" is a single spawned thread in the non-parallel
-    // compiler. We run on a spawned thread instead of the main thread (a) to
-    // provide control over the stack size, and (b) to increase similarity with
-    // the parallel compiler, in particular to ensure there is no accidental
-    // sharing of data between the main thread and the compilation thread
-    // (which might cause problems for the parallel compiler).
-    let mut builder = thread::Builder::new().name("rustc".to_string());
-    if let Some(size) = get_stack_size() {
-        builder = builder.stack_size(size);
-    }
-
-    // We build the session globals and run `f` on the spawned thread, because
-    // `SessionGlobals` does not impl `Send` in the non-parallel compiler.
-    thread::scope(|s| {
-        // `unwrap` is ok here because `spawn_scoped` only panics if the thread
-        // name contains null bytes.
-        let r = builder
-            .spawn_scoped(s, move || rustc_span::create_session_globals_then(edition, f))
-            .unwrap()
-            .join();
-
-        match r {
-            Ok(v) => v,
-            Err(e) => std::panic::resume_unwind(e),
+    #[cfg(any(unix, windows))]
+    {
+        // The "thread pool" is a single spawned thread in the non-parallel
+        // compiler. We run on a spawned thread instead of the main thread (a) to
+        // provide control over the stack size, and (b) to increase similarity with
+        // the parallel compiler, in particular to ensure there is no accidental
+        // sharing of data between the main thread and the compilation thread
+        // (which might cause problems for the parallel compiler).
+        let mut builder = thread::Builder::new().name("rustc".to_string());
+        if let Some(size) = get_stack_size() {
+            builder = builder.stack_size(size);
         }
-    })
+
+        // We build the session globals and run `f` on the spawned thread, because
+        // `SessionGlobals` does not impl `Send` in the non-parallel compiler.
+        thread::scope(|s| {
+            // `unwrap` is ok here because `spawn_scoped` only panics if the thread
+            // name contains null bytes.
+            let r = builder
+                .spawn_scoped(s, move || rustc_span::create_session_globals_then(edition, f))
+                .unwrap()
+                .join();
+
+            match r {
+                Ok(v) => v,
+                Err(e) => std::panic::resume_unwind(e),
+            }
+        })
+    }
+    #[cfg(not(any(unix, windows)))]
+    rustc_span::create_session_globals_then(edition, f)
 }
 
 #[cfg(not(parallel_compiler))]
@@ -195,6 +200,7 @@ pub fn get_codegen_backend(
             }
             #[cfg(feature = "llvm")]
             "llvm" => rustc_codegen_llvm::LlvmCodegenBackend::new,
+            "cranelift" => rustc_codegen_cranelift::__rustc_codegen_backend,
             backend_name => get_codegen_sysroot(early_dcx, maybe_sysroot, backend_name),
         }
     });
