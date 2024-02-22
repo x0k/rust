@@ -764,11 +764,11 @@ macro_rules! tool_extended {
 
                     $(for add_bin in $add_bins_to_sysroot {
                         let bin_source = tools_out.join(exe(add_bin, $sel.target));
-                        let bin_destination = bindir.join(exe(add_bin, $sel.compiler.host));
+                        let bin_destination = bindir.join(exe(add_bin, $sel.target));
                         $builder.copy(&bin_source, &bin_destination);
                     })?
 
-                    let tool = bindir.join(exe($tool_name, $sel.compiler.host));
+                    let tool = bindir.join(exe($tool_name, $sel.target));
                     tool
                 } else {
                     tool
