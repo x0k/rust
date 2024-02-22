@@ -1036,6 +1036,7 @@ pub trait EvalContextExt<'mir, 'tcx: 'mir>: crate::MiriInterpCxExt<'mir, 'tcx> {
     /// termination).
     fn run_threads(&mut self) -> InterpResult<'tcx, !> {
         static SIGNALED: AtomicBool = AtomicBool::new(false);
+        #[cfg(not(target_os = "wasi"))]
         ctrlc::set_handler(move || {
             // Indicate that we have ben signaled to stop. If we were already signaled, exit
             // immediately. In our interpreter loop we try to consult this value often, but if for

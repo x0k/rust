@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
+#[cfg(target_os = "wasi")]
+use std::os::wasi::ffi::{OsStrExt, OsStringExt};
 #[cfg(windows)]
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
 
@@ -300,7 +302,7 @@ pub trait EvalContextExt<'mir, 'tcx: 'mir>: crate::MiriInterpCxExt<'mir, 'tcx> {
             }
             Cow::Owned(OsString::from_wide(&converted))
         };
-        #[cfg(unix)]
+        #[cfg(any(unix, target_os = "wasi"))]
         return if target_os == "windows" {
             // Windows target, Unix host.
             let (from, to) = match direction {
